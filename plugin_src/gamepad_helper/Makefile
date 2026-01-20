@@ -1,96 +1,64 @@
-# Library metadata.
+#   Copyright (C) 2024 John Törnblom
+#
+# This file is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; see the file COPYING. If not see
+# <http://www.gnu.org/licenses/>.
 
-DEBUG_FLAGS = -D__FINAL__=1
-LOG_TYPE = -D__USE_PRINTF__
-BUILD_TYPE = _final
+PS5_HOST ?= ps5
+PS5_PORT ?= 9021
 
-ifeq ($(DEBUG),1)
-    DEBUG_FLAGS = -D__FINAL__=0
-    BUILD_TYPE = _debug
+ifdef PS5_PAYLOAD_SDK
+    include $(PS5_PAYLOAD_SDK)/toolchain/prospero.mk
+else
+    $(error PS5_PAYLOAD_SDK is undefined)
 endif
 
-TYPE         := $(BUILD_TYPE)
-FINAL        := $(DEBUG_FLAGS)
-BUILD_FOLDER := $(shell pwd)/../../bin/plugins
-OUTPUT_PRX   := $(shell basename $(CURDIR))
-TARGET       := $(BUILD_FOLDER)/prx$(TYPE)/$(OUTPUT_PRX)
-TARGET_ELF   := $(BUILD_FOLDER)/elf$(TYPE)/$(OUTPUT_PRX)
-TARGETSTUB   := $(OUTPUT_PRX).so
+ELF := gamepad_helper.elf
 
-# Libraries linked into the ELF.
-LIBS := -lSceLibcInternal -lGoldHEN_Hook -lkernel -lSceSysmodule -lScePad
+SRC := 										\
+			source/main.c	    			\
+			source/config.c	    			\
+			../../sdk/source/Detour.c     	\
+			../../sdk/source/GoldHEN.c    	\
+			../../sdk/source/HDE64.c      	\
+			../../sdk/source/Patcher.c    	\
+			../../sdk/source/Syscall.c    	\
+			../../sdk/source/Utilities.c  	\
+			../../common/plugin_common.c  	
+			
 
-EXTRAFLAGS := $(DEBUG_FLAGS) $(LOG_TYPE) -fcolor-diagnostics -Wall
+INC1 := include
+INC2 := ../../sdk/include
+INC3 := ../../common
 
-# You likely won't need to touch anything below this point.
-# Root vars
-TOOLCHAIN     := $(OO_PS4_TOOLCHAIN)
-GH_SDK        := $(GOLDHEN_SDK)
-PROJDIR       := ../$(shell basename $(CURDIR))/source
-INTDIR        := ../$(shell basename $(CURDIR))/build
-INCLUDEDIR    := ../$(shell basename $(CURDIR))/include
-COMMON_DIR    := ../../common
+CFLAGS := -Wall -g -I$(INC1) -I$(INC2) -I$(INC3) -lSceSystemService -lkernel_sys -lScePad -DDEBUG=1
 
-# Define objects to build
-CFILES      := $(wildcard $(PROJDIR)/*.c)
-CPPFILES    := $(wildcard $(PROJDIR)/*.cpp)
-COMMONFILES := $(wildcard $(COMMONDIR)/*.cpp)
-OBJS        := $(patsubst $(PROJDIR)/%.c, $(INTDIR)/%.o, $(CFILES)) $(patsubst $(PROJDIR)/%.cpp, $(INTDIR)/%.o, $(CPPFILES)) $(patsubst $(COMMONDIR)/%.cpp, $(INTDIR)/%.o, $(COMMONFILES))
-STUBOBJS    := $(patsubst $(PROJDIR)/%.c, $(INTDIR)/%.o, $(CFILES)) $(patsubst $(PROJDIR)/%.cpp, $(INTDIR)/%.o.stub, $(CPPFILES)) $(patsubst $(COMMONDIR)/%.cpp, $(INTDIR)/%.o.stub, $(COMMONFILES))
+all: $(ELF)
 
-# Define final C/C++ flags
-CFLAGS      := $(FINAL) --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include -I$(GH_SDK)/include -I$(INCLUDEDIR) -I$(COMMON_DIR) $(O_FLAG)
-CXXFLAGS    := $(CFLAGS) -isystem $(TOOLCHAIN)/$(INCLUDEDIR)/c++/v1
-LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x -e _init --eh-frame-hdr -L$(TOOLCHAIN)/lib -L$(GH_SDK) $(LIBS) 
-
-# Create the intermediate directory incase it doesn't already exist.
-_unused     := $(shell mkdir -p $(INTDIR))
-
-# Check for linux vs macOS and account for clang/ld path
-UNAME_S     := $(shell uname -s)
-
-ifeq ($(UNAME_S),Linux)
-        CC      := clang
-        CCX     := clang++
-        LD      := ld.lld
-        CDIR    := linux
-endif
-ifeq ($(UNAME_S),Darwin)
-        CC      := /usr/local/opt/llvm/bin/clang
-        CCX     := /usr/local/opt/llvm/bin/clang++
-        LD      := /usr/local/opt/llvm/bin/ld.lld
-        CDIR    := macos
-endif
-
-$(TARGET): $(INTDIR) $(OBJS)
-	$(LD) $(GH_SDK)/build/crtprx.o $(INTDIR)/*.o -o $(TARGET_ELF).elf $(LDFLAGS)
-	$(TOOLCHAIN)/bin/$(CDIR)/create-fself -in=$(TARGET_ELF).elf -out=$(TARGET_ELF).oelf --lib=$(TARGET).prx --paid 0x3800000000000011
-
-$(TARGETSTUB): $(INTDIR) $(STUBOBJS)
-	$(CC) $(INTDIR)/*.o.stub -o $(TARGETSTUB) -target x86_64-pc-linux-gnu -shared -fuse-ld=lld -ffreestanding -nostdlib -fno-builtin -L$(TOOLCHAIN)/lib $(LIBS)
-
-$(INTDIR)/%.o: $(PROJDIR)/%.c
-	$(CC) $(CFLAGS) -o $@ $<
-
-$(INTDIR)/%.o: $(PROJDIR)/%.cpp
-	$(CCX) $(CXXFLAGS) -o $@ $<
-
-$(INTDIR)/%.o.stub: $(PROJDIR)/%.c
-	$(CC) -target x86_64-pc-linux-gnu -ffreestanding -nostdlib -fno-builtin -fPIC $(O_FLAG) -s -c -o $@ $<
-
-$(INTDIR)/%.o.stub: $(PROJDIR)/%.cpp
-	$(CCX) -target x86_64-pc-linux-gnu -ffreestanding -nostdlib -fno-builtin -fPIC $(O_FLAG) -s -c -o $@ $<
-
-build-info:
-	$(shell echo "#define GIT_COMMIT \"$(shell git rev-parse HEAD)\"" > $(COMMON_DIR)/git_ver.h)
-	$(shell echo "#define GIT_VER \"$(shell git branch --show-current)\"" >> $(COMMON_DIR)/git_ver.h)
-	$(shell echo "#define GIT_NUM $(shell git rev-list HEAD --count)" >> $(COMMON_DIR)/git_ver.h)
-	$(shell echo "#define BUILD_DATE \"$(shell date '+%b %d %Y @ %T')\"" >> $(COMMON_DIR)/git_ver.h)
-
-.PHONY: clean
-.DEFAULT_GOAL := all
-
-all: build-info $(TARGET)
+$(ELF): $(SRC)
+	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
-	rm -rf $(TARGET) $(TARGETSTUB) $(INTDIR) $(OBJS)
+	rm -f $(ELF)
+
+test: $(ELF)
+	$(PS5_DEPLOY) -h $(PS5_HOST) -p $(PS5_PORT) $^
+
+debug: $(ELF)
+	gdb-multiarch \
+	-ex "set architecture i386:x86-64" \
+	-ex "target extended-remote $(PS5_HOST):2159" \
+	-ex "file $(ELF)" \
+	-ex "remote put $(ELF) /data/$(ELF)" \
+	-ex "set remote exec-file /data/$(ELF)" \
+	-ex "start"

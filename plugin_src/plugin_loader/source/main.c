@@ -15,8 +15,8 @@
 #include "plugin_common.h"
 #include "config.h"
 
-#define PLUGIN_CONFIG_PATH GOLDHEN_PATH "/plugins.ini"
-#define PLUGIN_PATH GOLDHEN_PATH "/plugins"
+#define PLUGIN_CONFIG_PATH ETAHEN_PATH "/plugins.ini"
+#define PLUGIN_PATH ETAHEN_PATH "/plugins"
 #define PLUGIN_DEFAULT_SECTION "default"
 #define PLUGIN_SETTINGS_SECTION "settings"
 

@@ -4,8 +4,10 @@
 #include "plugin_common.h"
 #include "Common.h"
 #include <Patcher.h>
+#include <sys/stat.h>
 #include "config.h"
 #include "pad.h"
+#include <dirent.h>
 
 attr_public const char* g_pluginName = "gamepad_helper";
 attr_public const char* g_pluginDesc = "(null)";
@@ -16,10 +18,14 @@ HOOK_INIT(scePadRead);
 HOOK_INIT(scePadReadState);
 HOOK_INIT(scePadSetVibration);
 
+const char * sceKernelGetFsSandboxRandomWord(void);
+int sceSystemServiceGetAppIdOfRunningBigApp(void);
+int sceSystemServiceGetAppTitleId(int app_id, char *title_id);
+
 Patcher* scePadReadExtPatcher;
 Patcher* scePadReadStateExtPatcher;
 
-#define PLUGIN_CONFIG_PATH GOLDHEN_PATH "/gamepad.ini"
+#define PLUGIN_CONFIG_PATH ETAHEN_PATH "/gamepad.ini"
 #define PLUGIN_DEFAULT_SECTION "default"
 
 #define JOY_CENTER_POS 0x80
@@ -271,11 +277,30 @@ s32 attr_public plugin_load(s32 argc, const char* argv[]) {
     buttonMapping[BUTTON_INTERCEPTED] = SCE_PAD_BUTTON_INTERCEPTED;
 
     // load config
-    struct proc_info procInfo;
-    if (sys_sdk_proc_info(&procInfo) == 0) {
-        print_proc_info();
-    } else {
-        final_printf("failed to initialise\n");
+    // struct proc_info procInfo;
+    // if (sys_sdk_proc_info(&procInfo) == 0) {
+    //     print_proc_info();
+    // } else {
+    //     final_printf("failed to initialise\n");
+    //     return -1;
+    // }
+    char tid[255];
+    int bigAppId = -1;
+    const int MAX_RETRY = 3;
+    int i = 0;
+    do {
+        bigAppId = sceSystemServiceGetAppIdOfRunningBigApp();
+        sleep(1);
+        ++i;
+    } while(bigAppId < 0 && i < MAX_RETRY);
+    if (bigAppId < 0)
+    { // bigAppId < 0 means no bigApp is running.
+        final_printf("No game running.\n");
+        return -1;
+    }
+    if (sceSystemServiceGetAppTitleId(bigAppId, &tid[0]) != 0)
+    {
+        final_printf("Failed to get title ID\n");
         return -1;
     }
 
@@ -295,7 +320,7 @@ s32 attr_public plugin_load(s32 argc, const char* argv[]) {
         return -1;
     }
 
-    final_printf("Section is TitleID [%s]\n", procInfo.titleid);
+    final_printf("Section is TitleID [%s]\n", tid);
 
     for (uint16_t i = 0; i < config->size; i++) {
         ini_section_s* section = &config->section[i];
@@ -305,8 +330,8 @@ s32 attr_public plugin_load(s32 argc, const char* argv[]) {
         if (strcmp(section->name, PLUGIN_DEFAULT_SECTION) == 0) {
             final_printf("Section [%s] is default\n", section->name);
             load_config(config, section->name);
-        } else if (strcmp(section->name, procInfo.titleid) == 0) {
-            final_printf("Section is TitleID [%s]\n", procInfo.titleid);
+        } else if (strcmp(section->name, tid) == 0) {
+            final_printf("Section is TitleID [%s]\n", tid);
             load_config(config, section->name);
         }
     }
@@ -359,4 +384,8 @@ s32 attr_module_hidden module_start(s64 argc, const void *args)
 s32 attr_module_hidden module_stop(s64 argc, const void *args)
 {
     return 0;
+}
+
+int main(int32_t argc, const char **argv) {
+    return(plugin_load(argc, argv));
 }
