@@ -3,13 +3,15 @@
 // Repository: https://github.com/GoldHEN/GoldHEN_Plugins_Repository
 
 #include <Common.h>
-#include <orbis/VideoOut.h>
+// #include <orbis/VideoOut.h>
 #include "plugin_common.h"
 
 attr_public const char *g_pluginName = "force_30_fps";
 attr_public const char *g_pluginDesc = "Force any game to run at 30 FPS";
 attr_public const char *g_pluginAuth = "illusion";
 attr_public u32 g_pluginVersion = 0x00000100; // 1.00
+
+int32_t sceVideoOutSetFlipRate(int32_t handle, int32_t fliprate);
 
 HOOK_INIT(sceVideoOutSetFlipRate);
 
@@ -44,4 +46,8 @@ s32 attr_module_hidden module_start(s64 argc, const void *args)
 s32 attr_module_hidden module_stop(s64 argc, const void *args)
 {
     return 0;
+}
+
+int main(int32_t argc, const char **argv) {
+    return(plugin_load(argc, argv));
 }
