@@ -4,12 +4,13 @@
 
 #include <Common.h>
 #include <stdbool.h>
-#include <orbis/Pad.h>
+// #include <orbis/Pad.h>
 #include <time.h>
-#include <orbis/UserService.h>
-#include <orbis/SystemService.h>
-#include <orbis/Sysmodule.h>
+// #include <orbis/UserService.h>
+// #include <orbis/SystemService.h>
+// #include <orbis/Sysmodule.h>
 #include "plugin_common.h"
+#include "pad.h"
 
 #define PLUGIN_NAME "frame_logger"
 #define LOG_FOLDER "/data/" PLUGIN_NAME
@@ -19,7 +20,57 @@ attr_public const char *g_pluginDesc = "Log frametime statistics.";
 attr_public const char *g_pluginAuth = "illusion";
 attr_public u32 g_pluginVersion = 0x00000100; // 1.00
 
+typedef enum OrbisSystemServiceParamId : int32_t
+{
+    ORBIS_SYSTEM_SERVICE_PARAM_ID_LANG = 1,
+    ORBIS_SYSTEM_SERVICE_PARAM_ID_DATE_FORMAT = 2,
+    ORBIS_SYSTEM_SERVICE_PARAM_ID_TIME_FORMAT = 3,
+    ORBIS_SYSTEM_SERVICE_PARAM_ID_TIME_ZONE = 4,
+    ORBIS_SYSTEM_SERVICE_PARAM_ID_SUMMERTIME = 5,
+    ORBIS_SYSTEM_SERVICE_PARAM_ID_SYSTEM_NAME = 6,
+    ORBIS_SYSTEM_SERVICE_PARAM_ID_GAME_PARENTAL_LEVEL = 7,
+    ORBIS_SYSTEM_SERVICE_PARAM_ID_ENTER_BUTTON_ASSIGN = 1000
+} OrbisSystemServiceParamId;
+
+typedef uint16_t OrbisKernelMode;
+
+#define ORBIS_KERNEL_PRIO_FIFO_LOWEST  0x2FF
+#define ORBIS_KERNEL_PRIO_FIFO_NORMAL  0x2BC
+#define ORBIS_KERNEL_PRIO_FIFO_HIGHEST 0x100
+
+typedef struct OrbisUserServiceInitializeParams {
+	uint32_t priority;
+} OrbisUserServiceInitializeParams;
+
+#define ORBIS_PAD_ERROR_INVALID_ARG                             0x80920001
+#define ORBIS_PAD_ERROR_INVALID_PORT                            0x80920002
+#define ORBIS_PAD_ERROR_INVALID_HANDLE                          0x80920003
+#define ORBIS_PAD_ERROR_ALREADY_OPENED                          0x80920004
+#define ORBIS_PAD_ERROR_NOT_INITIALIZED                         0x80920005
+#define ORBIS_PAD_ERROR_INVALID_LIGHTBAR_SETTING                0x80920006
+#define ORBIS_PAD_ERROR_DEVICE_NOT_CONNECTED                    0x80920007
+#define ORBIS_PAD_ERROR_DEVICE_NO_HANDLE                        0x80920008
+#define ORBIS_PAD_ERROR_FATAL                                   0x809200FF
+#define ORBIS_PAD_ERROR_NOT_PERMITTED                           0x80920101
+#define ORBIS_PAD_ERROR_INVALID_BUFFER_LENGTH                   0x80920102
+#define ORBIS_PAD_ERROR_INVALID_REPORT_LENGTH                   0x80920103
+#define ORBIS_PAD_ERROR_INVALID_REPORT_ID                       0x80920104
+#define ORBIS_PAD_ERROR_SEND_AGAIN                              0x80920105
+
 int32_t sceGnmSubmitAndFlipCommandBuffers(uint32_t count, void *dcbGpuAddrs[], uint32_t *dcbSizesInBytes, void *ccbGpuAddrs[], uint32_t *ccbSizesInBytes, uint32_t videoOutHandle, uint32_t displayBufferIndex, uint32_t flipMode, int64_t flipArg);
+uint64_t sceKernelGetProcessTimeCounter(void);
+uint64_t sceKernelGetProcessTimeCounterFrequency(void);
+int32_t sceKernelMkdir(const char *path, OrbisKernelMode mode);
+int32_t sceSystemServiceParamGetInt(int32_t paramId, int32_t *value);
+int32_t sceUserServiceInitialize(void *);
+int32_t sceUserServiceGetInitialUser(int32_t *);
+int32_t scePadOpen(int32_t userID, int32_t type, int32_t index, void *param);
+int32_t scePadGetHandle(int32_t userID, uint32_t controller_type, uint32_t controller_index);
+int32_t scePadInit(void);
+int32_t scePthreadCreate(void * thread, const void * attr, void*(*entry)(void*), void * arg, const char * name);
+void scePthreadExit(void*);
+
+s32 attr_public plugin_unload(s32 argc, const char *argv[]);
 
 HOOK_INIT(sceGnmSubmitAndFlipCommandBuffers);
 
@@ -84,6 +135,7 @@ struct tm get_local_time(void)
 void toggleRecording(void)
 {
     g_isRecording = !g_isRecording;
+    if (!g_GnmHook) sleep(1);
     if (!g_GnmHook)
     {
         NotifyStatic(TEX_ICON_SYSTEM, "g_GnmHook is false! cannot start data capture\nPlugin (" PLUGIN_NAME ") will now quit.");
@@ -119,24 +171,23 @@ void toggleRecording(void)
     {
         fflush(g_LogFILE);
         fclose(g_LogFILE);
-        NotifyStatic(TEX_ICON_SYSTEM, "Recording stop");
     }
 }
 
-bool checkRecordingButton(OrbisPadData *pData)
+bool checkRecordingButton(ScePadData *pData)
 {
-    return (pData->buttons & ORBIS_PAD_BUTTON_L3) &&
-           (pData->buttons & ORBIS_PAD_BUTTON_L1) &&
-           (pData->buttons & ORBIS_PAD_BUTTON_TRIANGLE);
+    return (pData->buttons & SCE_PAD_BUTTON_L3) &&
+           (pData->buttons & SCE_PAD_BUTTON_L1) &&
+           (pData->buttons & SCE_PAD_BUTTON_TRIANGLE);
 }
 
-bool checkKillButton(OrbisPadData *pData)
+bool checkKillButton(ScePadData *pData)
 {
-    return (pData->buttons & ORBIS_PAD_BUTTON_L3) &&
-           (pData->buttons & ORBIS_PAD_BUTTON_R3) &&
-           (pData->buttons & ORBIS_PAD_BUTTON_L1) &&
-           (pData->buttons & ORBIS_PAD_BUTTON_R1) &&
-           (pData->buttons & ORBIS_PAD_BUTTON_SQUARE);
+    return (pData->buttons & SCE_PAD_BUTTON_L3) &&
+           (pData->buttons & SCE_PAD_BUTTON_R3) &&
+           (pData->buttons & SCE_PAD_BUTTON_L1) &&
+           (pData->buttons & SCE_PAD_BUTTON_R1) &&
+           (pData->buttons & SCE_PAD_BUTTON_SQUARE);
 }
 
 int32_t GetHandle(void)
@@ -171,13 +222,13 @@ void *frame_logger_input_thread(void *args)
         NotifyStatic(TEX_ICON_SYSTEM, "Failed to init pad");
         g_RunningThread = false;
     }
-    OrbisPadData pData;
+    ScePadData pData;
     final_printf("Start listening for controller inputs\n");
     while (g_RunningThread)
     {
         int32_t PadHandle = GetHandle();
         int32_t ret = scePadReadState(PadHandle, &pData);
-        debug_printf("scePadReadState: 0x%08x\n", ret);
+        debug_printf("scePadReadState: 0x%08x; handle: 0x%08x\n", ret, PadHandle);
         if (ret == 0 && PadHandle > 0 && pData.connected)
         {
             bool currentTogglePressed = checkRecordingButton(&pData);
@@ -203,7 +254,7 @@ void *frame_logger_input_thread(void *args)
         {
 #if (__FINAL__) == 0
             int32_t flush_ret = fflush(g_LogFILE);
-            debug_printf("fflush: 0x%08x\n", flush_ret);
+            if (flush_ret) debug_printf("fflush: %d\n", ret);
 #else
             fflush(g_LogFILE);
 #endif
@@ -211,6 +262,7 @@ void *frame_logger_input_thread(void *args)
         sleep(1);
     }
     final_printf("%s: Exit\n", __func__);
+    // plugin_unload(0, NULL);
     scePthreadExit(NULL);
     return NULL;
 }
@@ -225,7 +277,7 @@ s32 attr_public plugin_load(s32 argc, const char *argv[])
     g_TimeStart = sceKernelGetProcessTimeCounter();
     g_TscTick = (double)sceKernelGetProcessTimeCounterFrequency();
 
-    OrbisPthread thread;
+    pthread_t thread;
     scePthreadCreate(&thread, NULL, frame_logger_input_thread, NULL, STRINGIFY(frame_logger_input_thread));
     HOOK32(sceGnmSubmitAndFlipCommandBuffers);
     return 0;
@@ -246,4 +298,8 @@ s32 attr_module_hidden module_start(s64 argc, const void *args)
 s32 attr_module_hidden module_stop(s64 argc, const void *args)
 {
     return 0;
+}
+
+int main(int32_t argc, const char **argv) {
+    return(plugin_load(argc, argv));
 }
