@@ -169,8 +169,13 @@ void toggleRecording(void)
     }
     else
     {
-        fflush(g_LogFILE);
-        fclose(g_LogFILE);
+        int ret;
+        ret = fflush(g_LogFILE);
+        if (ret) klog_printf("fflush: %d\n", ret);
+        ret = fclose(g_LogFILE);
+        if (ret) klog_printf("fclose: %d\n", ret);
+        g_LogFILE = NULL;
+        NotifyStatic(TEX_ICON_SYSTEM, "Recording stop");
     }
 }
 
