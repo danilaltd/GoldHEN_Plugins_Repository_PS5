@@ -49,3 +49,7 @@ s32 attr_module_hidden module_stop(s64 argc, const void *args)
 {
     return 0;
 }
+
+int main(int32_t argc, const char **argv) {
+    return(plugin_load(argc, argv));
+}
