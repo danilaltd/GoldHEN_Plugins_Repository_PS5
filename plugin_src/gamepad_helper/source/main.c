@@ -39,6 +39,7 @@ bool g_enableCustomButton;
 int g_virationIntensity;
 
 uint32_t* buttonMapping;
+char tid[255];
 
 inline int deadzone_apply(ScePadData* pData);
 inline uint8_t check_deadzone(uint8_t input, uint8_t deadZone);
@@ -242,8 +243,8 @@ s32 attr_public plugin_load(s32 argc, const char* argv[]) {
     // defaults value
     g_enableDeadZone = true;
 
-    g_deadZoneLeft = 0xd;
-    g_deadZoneRight = 0xd;
+    g_deadZoneLeft = 0x50;
+    g_deadZoneRight = 0x50;
 
     g_enableCustomTouchPad = false;
     g_enableCustomButton = false;
@@ -284,7 +285,6 @@ s32 attr_public plugin_load(s32 argc, const char* argv[]) {
     //     final_printf("failed to initialise\n");
     //     return -1;
     // }
-    char tid[255];
     int bigAppId = -1;
     const int MAX_RETRY = 3;
     int i = 0;
