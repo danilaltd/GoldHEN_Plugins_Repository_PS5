@@ -51,7 +51,7 @@ jobs:
         chmod 0777 -R ${{ runner.tool_cache }}/ps5-payload-sdk/ps5-payload-sdk 
 
     - name: Checkout Payload
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Build GoldHEN-to-etaHEN-Ported-Plugins-Binaries
       run: bash ./build.sh
