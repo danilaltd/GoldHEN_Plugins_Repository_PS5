@@ -37,6 +37,18 @@ jobs:
         ref: clang-14
         path: mxml
 
+    - name: Get Latest SDK Release Info
+      id: sdk-release
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const release = await github.rest.repos.getLatestRelease({
+            owner: 'ps5-payload-dev',
+            repo: 'sdk'
+          });
+          core.setOutput('download_url', release.data.assets.find(asset => asset.name.endsWith('.zip')).browser_download_url);
+    
     - name: Download Latest SDK
       run: |
         curl -L "${{ steps.sdk-release.outputs.download_url }}" -o ps5-sdk.zip
