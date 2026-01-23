@@ -30,13 +30,6 @@ jobs:
         fetch-depth: 0
         submodules: recursive
 
-    - name: Checkout mxml
-      uses: actions/checkout@main
-      with:
-        repository: illusion0001/mxml
-        ref: clang-14
-        path: mxml
-
     - name: Get Latest SDK Release Info
       id: sdk-release
       uses: actions/github-script@v6
@@ -56,12 +49,6 @@ jobs:
         unzip ps5-sdk.zip -d ${{ runner.tool_cache }}/ps5-payload-sdk
         echo PS5_PAYLOAD_SDK=${{ runner.tool_cache }}/ps5-payload-sdk/ps5-payload-sdk >> $GITHUB_ENV
         chmod 0777 -R ${{ runner.tool_cache }}/ps5-payload-sdk/ps5-payload-sdk 
-
-    - name: Install mini xml
-      working-directory: mxml/ps4
-      run: |
-        wget https://raw.githubusercontent.com/bucanero/oosdk_libraries/master/build_rules.mk -O $OO_PS4_TOOLCHAIN/build_rules.mk
-        make install PRX_BUILD=1
 
     - name: Checkout Payload
       uses: actions/checkout@v3
