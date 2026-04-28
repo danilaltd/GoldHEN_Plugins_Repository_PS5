@@ -64,11 +64,11 @@ jobs:
               plugin_src//bin/*.elf
               plugin_src//bin/*.plugin
 
-    - name: Create Release
-      if: github.event_name != 'pull_request'
-      working-directory: bin/plugins
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        tt="${{ env.commit_ver }}-${{ env.commit_hash }}"
-        gh release create $tt ${{ env.ZIP_NAME }}.zip --target ${{ GITHUB.SHA }} -t $tt -F hash.md -p
+    # - name: Create Release
+    #   if: github.event_name != 'pull_request'
+    #   working-directory: bin/plugins
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   run: |
+    #     tt="${{ env.commit_ver }}-${{ env.commit_hash }}"
+    #     gh release create $tt ${{ env.ZIP_NAME }}.zip --target ${{ GITHUB.SHA }} -t $tt -F hash.md -p
