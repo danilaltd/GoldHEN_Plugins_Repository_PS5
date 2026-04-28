@@ -23,7 +23,7 @@ else
     $(error PS5_PAYLOAD_SDK is undefined)
 endif
 
-ELF := force_30fps.elf
+ELF := force_30_fps.elf
 
 SRC := 										\
 			source/main.c	    			\
