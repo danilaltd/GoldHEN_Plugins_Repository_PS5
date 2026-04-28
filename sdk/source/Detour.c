@@ -11,6 +11,8 @@
 
 #include "Common.h"
 #include "HDE64.h"
+#include <machine/param.h>
+#include <sys/mman.h>
 
 size_t Detour_GetInstructionSize(Detour *This, uint64_t Address, size_t MinSize);
 void Detour_WriteJump64(Detour *This, void *Address, uint64_t Destination);
@@ -27,7 +29,10 @@ size_t Detour_GetInstructionSize(Detour *This, uint64_t Address, size_t MinSize)
     size_t InstructionSize = 0;
 
     if (!Address) return 0;
-
+    pid_t pid = getpid();
+    if (sceKernelMprotect((void*)Address, PAGE_SIZE, PROT_EXEC | PROT_READ | PROT_WRITE) < 0){
+        kernel_mprotect(pid, (uint64_t) Address, PAGE_SIZE, PROT_EXEC | PROT_READ | PROT_WRITE);
+    }
     while (InstructionSize < MinSize) {
         hde64s hs;
         uint32_t temp = hde64_disasm((void *) (Address + InstructionSize), &hs);
@@ -258,5 +263,7 @@ void Detour_Destroy(Detour *This) {
     Detour_RestoreFunction(This);
 
     // Clean up
+    // pid_t pid = getpid();
+    // pt_munmap(pid, (intptr_t)This->StubPtr, This->StubSize);
     sceKernelMunmap(This->StubPtr, This->StubSize);
 }

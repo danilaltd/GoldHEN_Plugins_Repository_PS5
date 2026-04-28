@@ -79,5 +79,7 @@ void Patcher_Destroy(Patcher *This)
     Patcher_Restore_Patch(This);
 
     //Clean up
+    // pid_t pid = getpid();
+    // pt_munmap(pid, (intptr_t)This->OriginalData, This->Length);
     sceKernelMunmap(This->OriginalData, This->Length);
 }
